@@ -8,7 +8,13 @@ Usage:
 import pandas as pd
 from sqlalchemy import create_engine, inspect, text
 import logging
+import sys
 from config import SOURCE_URL, TARGET_URL, CHUNK_SIZE
+
+# Fix encoding for Windows
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,26 +39,36 @@ def extract_table(src_engine, tgt_engine, src_table, tgt_table, chunk_size=CHUNK
     """
     Extract a single table from MariaDB to PostgreSQL raw schema.
     Idempotent: truncates target before loading.
+    Uses if_exists='replace' to handle schema mismatches.
     """
     try:
         logger.info(f"Extracting {src_table} → raw.{tgt_table}")
 
-        # Read from source
-        df = pd.read_sql_table(src_table, src_engine)
+        # Read from source using SQL query (handles case-insensitive table names)
+        query = f"SELECT * FROM `{src_table}`"
+        df = pd.read_sql(query, src_engine)
 
-        # Truncate target table (idempotent)
+        # Clean text columns - replace problematic characters
+        for col in df.select_dtypes(include=['object']).columns:
+            try:
+                # Replace BOM and problematic characters
+                df[col] = df[col].apply(lambda x: str(x).replace('\ufeff', '').replace('\u202f', ' ') if pd.notna(x) else x)
+            except:
+                pass
+
+        # Drop target table and recreate (handles schema mismatches)
         with tgt_engine.connect() as conn:
-            conn.execute(text(f"TRUNCATE TABLE raw.{tgt_table}"))
+            conn.execute(text(f"DROP TABLE IF EXISTS raw.{tgt_table} CASCADE"))
             conn.commit()
 
-        # Write to target in chunks
-        df.to_sql(tgt_table, tgt_engine, schema="raw", if_exists="append", index=False, chunksize=chunk_size)
+        # Write to target with auto schema creation
+        df.to_sql(tgt_table, tgt_engine, schema="raw", if_exists="replace", index=False, chunksize=chunk_size)
 
         row_count = len(df)
-        logger.info(f"✓ {src_table}: {row_count:,} rows")
+        logger.info(f"OK {src_table}: {row_count:,} rows")
 
     except Exception as e:
-        logger.error(f"✗ Failed to extract {src_table}: {str(e)}")
+        logger.error(f"ERROR {src_table}: {str(e)[:100]}")
         raise
 
 
