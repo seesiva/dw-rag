@@ -55,30 +55,33 @@ SELECT
 FROM raw.erpnext_sales_invoice_item
 WHERE parent IN (SELECT invoice_id FROM staging.stg_sales_invoice);
 
--- Staging: Sales Orders (submitted only)
+-- Staging: Sales Orders (submitted only, exclude internal customers)
 DROP TABLE IF EXISTS staging.stg_sales_order CASCADE;
 CREATE TABLE staging.stg_sales_order AS
 SELECT
-    name AS order_id,
-    customer,
-    customer_name,
-    transaction_date,
-    posting_date,
-    delivery_date,
-    base_net_total::NUMERIC(18,6) AS net_total,
-    base_grand_total::NUMERIC(18,6) AS grand_total,
-    base_total_taxes_and_charges::NUMERIC(18,6) AS total_taxes,
-    total_qty::NUMERIC(18,6) AS qty,
-    currency,
-    status,
-    company,
-    territory,
-    cost_center,
-    project,
-    creation,
-    modified
-FROM raw.erpnext_sales_order
-WHERE docstatus = 1;
+    o.name AS order_id,
+    o.customer,
+    o.customer_name,
+    o.transaction_date,
+    o.posting_date,
+    o.delivery_date,
+    o.base_net_total::NUMERIC(18,6) AS net_total,
+    o.base_grand_total::NUMERIC(18,6) AS grand_total,
+    o.base_total_taxes_and_charges::NUMERIC(18,6) AS total_taxes,
+    o.total_qty::NUMERIC(18,6) AS qty,
+    o.currency,
+    o.status,
+    o.company,
+    o.territory,
+    o.cost_center,
+    o.project,
+    o.creation,
+    o.modified
+FROM raw.erpnext_sales_order o
+INNER JOIN raw.erpnext_customer c ON o.customer = c.name
+WHERE o.docstatus = 1
+  AND c.disabled = 0
+  AND (c.is_internal_customer = 0 OR c.is_internal_customer IS NULL);
 
 -- Staging: Sales Order Items
 DROP TABLE IF EXISTS staging.stg_sales_order_item CASCADE;
@@ -103,7 +106,7 @@ SELECT
 FROM raw.erpnext_sales_order_item
 WHERE parent IN (SELECT order_id FROM staging.stg_sales_order);
 
--- Staging: Customers (active only)
+-- Staging: Customers (active and external only, exclude internal customers)
 DROP TABLE IF EXISTS staging.stg_customer CASCADE;
 CREATE TABLE staging.stg_customer AS
 SELECT
@@ -120,7 +123,8 @@ SELECT
     creation,
     modified
 FROM raw.erpnext_customer
-WHERE disabled = 0;
+WHERE disabled = 0
+  AND (is_internal_customer = 0 OR is_internal_customer IS NULL);
 
 -- Staging: Items
 DROP TABLE IF EXISTS staging.stg_item CASCADE;
