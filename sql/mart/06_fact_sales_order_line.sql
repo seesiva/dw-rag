@@ -13,6 +13,10 @@ SELECT
     dw.warehouse_key,
     dd.date_id AS order_date_id,
     (TO_CHAR(COALESCE(o.delivery_date, o.posting_date), 'YYYYMMDD'))::INT AS delivery_date_id,
+    -- Actual dates (crucial for filtering and analysis)
+    o.transaction_date::DATE AS order_date,
+    o.posting_date::DATE AS order_posted_date,
+    o.delivery_date::DATE AS expected_delivery_date,
     o.status,
     o.company,
     o.territory,

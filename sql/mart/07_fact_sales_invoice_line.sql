@@ -13,6 +13,9 @@ SELECT
     dw.warehouse_key,
     dd.date_id AS invoice_date_id,
     (TO_CHAR(COALESCE(i.due_date, i.posting_date), 'YYYYMMDD'))::INT AS due_date_id,
+    -- Actual dates (crucial for filtering and analysis)
+    i.posting_date::DATE AS invoice_date,
+    i.due_date::DATE AS payment_due_date,
     i.is_return,
     i.company,
     i.territory,

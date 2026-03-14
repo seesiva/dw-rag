@@ -10,6 +10,8 @@ SELECT
     di.item_key,
     dw.warehouse_key,
     dd.date_id,
+    -- Actual transaction date (crucial for filtering and trend analysis)
+    sl.posting_date::DATE AS transaction_date,
     sl.voucher_type,
     sl.voucher_no,
     sl.company,
