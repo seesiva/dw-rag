@@ -516,6 +516,131 @@ WHERE is_sales = TRUE OR is_stock = TRUE;
 
 ---
 
+### fact_work_order_readiness
+
+**Purpose:** Monitor work order production status and identify work orders that haven't had job cards created or are overdue.
+
+**Grain:** 1 row per work order
+
+**Key Columns:**
+
+| Column | Type | Description | Example |
+|--------|------|-------------|---------|
+| fact_key | INTEGER | Primary key | 156 |
+| work_order_id | VARCHAR | Work order ID | WO-2026-00012 |
+| item_key | INTEGER | FK to dim_item | 2145 |
+| item_code | VARCHAR | Product code | GAR-2024-SHIRT-L-RED |
+| item_name | VARCHAR | Product display name | Shirt Size L Red |
+| bom_no | VARCHAR | Associated BOM | BOM-SHIRT-001 |
+| status | VARCHAR | Work order status | In Process |
+| planned_qty | NUMERIC(18,6) | Planned production qty | 500.00 |
+| produced_qty | NUMERIC(18,6) | Actual produced qty | 250.00 |
+| planned_start_date | DATE | Planned start | 2026-03-10 |
+| planned_end_date | DATE | Planned end | 2026-03-15 |
+| actual_start_date | DATE | Actual start | 2026-03-11 |
+| completion_pct | NUMERIC(5,1) | % of planned produced | 50.0 |
+| production_status | VARCHAR | Status: 'Not Started', 'In Progress', 'Completed' | In Progress |
+| is_overdue | BOOLEAN | Past planned end date? | FALSE |
+| days_overdue | INTEGER | Days late (0 if on time) | 0 |
+| has_job_cards | BOOLEAN | Job cards created? | FALSE |
+| job_card_count | INTEGER | Number of job cards | 0 |
+| material_item_count | INTEGER | Number of material lines | 8 |
+| readiness_flag | VARCHAR | Status: MISSING_JOB_CARDS, OVERDUE, etc. | MISSING_JOB_CARDS |
+| company | VARCHAR | Legal entity | RAGA TEX INDIA |
+| dw_load_date | TIMESTAMP | Load timestamp | 2026-03-14 10:30:00 |
+
+**Query Examples:**
+
+```sql
+-- Work orders missing job cards (blocks labor tracking)
+SELECT work_order_id, item_code, planned_qty, produced_qty, job_card_count
+FROM fact_work_order_readiness
+WHERE has_job_cards = FALSE AND production_status != 'Completed'
+ORDER BY planned_end_date;
+
+-- Overdue work orders
+SELECT work_order_id, item_code, planned_end_date, days_overdue, completion_pct
+FROM fact_work_order_readiness
+WHERE is_overdue = TRUE AND production_status IN ('Not Started', 'In Progress')
+ORDER BY days_overdue DESC;
+
+-- Work order completion status
+SELECT
+    production_status,
+    COUNT(*) as wo_count,
+    ROUND(AVG(completion_pct), 1) as avg_completion,
+    COUNT(CASE WHEN has_job_cards = FALSE THEN 1 END) as missing_job_cards
+FROM fact_work_order_readiness
+GROUP BY production_status
+ORDER BY wo_count DESC;
+```
+
+---
+
+### fact_purchase_readiness
+
+**Purpose:** Monitor purchase order fulfillment and identify items pending receipt that block production.
+
+**Grain:** 1 row per purchase order line item
+
+**Key Columns:**
+
+| Column | Type | Description | Example |
+|--------|------|-------------|---------|
+| fact_key | INTEGER | Primary key | 489 |
+| po_id | VARCHAR | Purchase order ID | PO-2026-00089 |
+| item_key | INTEGER | FK to dim_item | 1203 |
+| warehouse_key | INTEGER | FK to dim_warehouse | 5 |
+| supplier | VARCHAR | Supplier name | COTTON MILLS LTD |
+| item_code | VARCHAR | Item code | RAW-COTTON-001 |
+| item_name | VARCHAR | Item name | Raw Cotton (Grade A) |
+| ordered_qty | NUMERIC(18,6) | Qty ordered | 1000.00 |
+| received_qty | NUMERIC(18,6) | Qty received | 600.00 |
+| pending_qty | NUMERIC(18,6) | Qty still pending | 400.00 |
+| rate | NUMERIC(18,6) | Unit rate | 45.50 |
+| base_rate | NUMERIC(18,6) | Base rate | 45.50 |
+| amount | NUMERIC(18,6) | Line total | 45500.00 |
+| po_date | DATE | PO creation date | 2026-02-20 |
+| po_expected_delivery_date | DATE | Expected delivery | 2026-03-10 |
+| po_status | VARCHAR | PO status | To Receive and Bill |
+| receipt_status | VARCHAR | 'Not Received', 'Partially Received', 'Fully Received' | Partially Received |
+| is_overdue | BOOLEAN | Past expected date? | TRUE |
+| days_pending | INTEGER | Days waiting | 4 |
+| days_until_due | INTEGER | Days until due (0 if overdue) | 0 |
+| fulfillment_status | VARCHAR | RECEIVED, PARTIALLY_RECEIVED, PENDING_RECEIPT, OVERDUE | OVERDUE |
+| company | VARCHAR | Legal entity | RAGA TEX INDIA |
+| warehouse | VARCHAR | Receiving warehouse | Mumbai WH |
+| dw_load_date | TIMESTAMP | Load timestamp | 2026-03-14 10:30:00 |
+
+**Query Examples:**
+
+```sql
+-- Items pending receipt that are overdue (critical)
+SELECT po_id, supplier, item_code, item_name, pending_qty, days_pending
+FROM fact_purchase_readiness
+WHERE is_overdue = TRUE AND receipt_status IN ('Not Received', 'Partially Received')
+ORDER BY days_pending DESC;
+
+-- Purchase order fulfillment by supplier
+SELECT
+    supplier,
+    COUNT(*) as po_lines,
+    SUM(CASE WHEN receipt_status = 'Fully Received' THEN 1 END) as fully_received,
+    SUM(CASE WHEN receipt_status = 'Partially Received' THEN 1 END) as partially_received,
+    SUM(CASE WHEN receipt_status = 'Not Received' THEN 1 END) as not_received
+FROM fact_purchase_readiness
+GROUP BY supplier
+ORDER BY supplier;
+
+-- Items awaiting receipt for more than N days
+SELECT po_id, item_code, item_name, pending_qty, expected_delivery, days_pending
+FROM fact_purchase_readiness
+WHERE pending_qty > 0 AND days_pending > 7
+ORDER BY days_pending DESC;
+```
+
+---
+
 ## Glossary
 
 | Term | Definition |

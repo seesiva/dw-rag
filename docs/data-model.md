@@ -482,6 +482,82 @@ Operational readiness: Item master data completeness checks.
 
 ---
 
+### fact_work_order_readiness
+Operational readiness: Work order production status and job card readiness.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| fact_key | INTEGER | Primary key |
+| work_order_id | VARCHAR | Work order ID |
+| item_key | INTEGER | FK → dim_item |
+| item_code | VARCHAR | Product code |
+| item_name | VARCHAR | Product name |
+| bom_no | VARCHAR | Associated BOM ID |
+| status | VARCHAR | Work order status |
+| planned_qty | NUMERIC(18,6) | Planned quantity to produce |
+| produced_qty | NUMERIC(18,6) | Actual quantity produced |
+| planned_start_date | DATE | Planned production start |
+| planned_end_date | DATE | Planned production end |
+| actual_start_date | DATE | Actual production start |
+| completion_pct | NUMERIC(5,1) | % of planned qty produced |
+| production_status | VARCHAR | 'Not Started', 'In Progress', 'Completed' |
+| is_overdue | BOOLEAN | TRUE if past planned end date |
+| days_overdue | INTEGER | Days past due (0 if on time) |
+| has_job_cards | BOOLEAN | Are job cards created? |
+| job_card_count | INTEGER | Number of job cards |
+| material_item_count | INTEGER | Number of material lines |
+| readiness_flag | VARCHAR | 'MISSING_JOB_CARDS', 'OVERDUE', 'COMPLETED', 'IN_PROGRESS' |
+| company | VARCHAR | Legal entity |
+| dw_load_date | TIMESTAMP | Load timestamp |
+
+**Grain:** 1 row per work order
+**Use Cases:**
+- Identify work orders missing job cards (blocking labor tracking)
+- Monitor production schedule adherence
+- Identify overdue production work
+- Production execution dashboard
+
+---
+
+### fact_purchase_readiness
+Operational readiness: Purchase order fulfillment and receipt tracking.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| fact_key | INTEGER | Primary key |
+| po_id | VARCHAR | Purchase order ID |
+| item_key | INTEGER | FK → dim_item |
+| warehouse_key | INTEGER | FK → dim_warehouse |
+| supplier | VARCHAR | Supplier name |
+| item_code | VARCHAR | Item code |
+| item_name | VARCHAR | Item name |
+| ordered_qty | NUMERIC(18,6) | Quantity ordered |
+| received_qty | NUMERIC(18,6) | Quantity received |
+| pending_qty | NUMERIC(18,6) | Qty still pending receipt |
+| rate | NUMERIC(18,6) | Unit rate |
+| base_rate | NUMERIC(18,6) | Base unit rate |
+| amount | NUMERIC(18,6) | Line total amount |
+| po_date | DATE | PO creation date |
+| po_expected_delivery_date | DATE | PO delivery target |
+| po_status | VARCHAR | PO status (Draft, To Receive, etc.) |
+| receipt_status | VARCHAR | 'Not Received', 'Partially Received', 'Fully Received' |
+| is_overdue | BOOLEAN | TRUE if past expected date |
+| days_pending | INTEGER | Days waiting for receipt |
+| days_until_due | INTEGER | Days until due (0 if overdue) |
+| fulfillment_status | VARCHAR | 'RECEIVED', 'PARTIALLY_RECEIVED', 'PENDING_RECEIPT', 'OVERDUE' |
+| company | VARCHAR | Legal entity |
+| warehouse | VARCHAR | Receiving warehouse |
+| dw_load_date | TIMESTAMP | Load timestamp |
+
+**Grain:** 1 row per PO line item
+**Use Cases:**
+- Identify items pending receipt blocking production
+- Monitor supplier delivery performance
+- Track overdue purchase orders
+- Procurement dashboard for supply chain visibility
+
+---
+
 ## Relationships Summary
 
 ### Transactional Facts
@@ -501,7 +577,7 @@ Operational readiness: Item master data completeness checks.
 | fact_stock_movement | dim_warehouse | warehouse_key | Many-to-One |
 | fact_stock_movement | dim_date | date_id | Many-to-One |
 
-### Operational Readiness Facts
+### Operational Readiness Facts (Phase 1)
 | From | To | Join | Cardinality |
 |------|----|----|-------------|
 | fact_material_shortage | dim_item | item_key | Many-to-One |
@@ -509,6 +585,13 @@ Operational readiness: Item master data completeness checks.
 | fact_sales_order_readiness | dim_customer | customer_key | Many-to-One |
 | fact_sales_order_readiness | dim_date | delivery_date_id | Many-to-One |
 | fact_item_master_readiness | dim_item | item_key | Many-to-One |
+
+### Manufacturing & Procurement Facts (Phase 2)
+| From | To | Join | Cardinality |
+|------|----|----|-------------|
+| fact_work_order_readiness | dim_item | item_key | Many-to-One |
+| fact_purchase_readiness | dim_item | item_key | Many-to-One |
+| fact_purchase_readiness | dim_warehouse | warehouse_key | Many-to-One |
 
 ### Attribute Dimension
 | From | To | Join | Cardinality |

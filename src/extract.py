@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Tables to extract: (source_table, target_raw_table)
 EXTRACT_TABLES = [
+    # Sales & Inventory (Phase 1)
     ("tabSales Invoice", "erpnext_sales_invoice"),
     ("tabSales Invoice Item", "erpnext_sales_invoice_item"),
     ("tabSales Order", "erpnext_sales_order"),
@@ -32,6 +33,15 @@ EXTRACT_TABLES = [
     ("tabItem Attribute", "erpnext_item_attribute"),
     ("tabItem Attribute Value", "erpnext_item_attribute_value"),
     ("tabItem Variant Attribute", "erpnext_item_variant_attribute"),
+    # Manufacturing & Procurement (Phase 2)
+    ("tabBOM", "erpnext_bom"),
+    ("tabWork Order", "erpnext_work_order"),
+    ("tabWork Order Item", "erpnext_work_order_item"),
+    ("tabJob Card", "erpnext_job_card"),
+    ("tabPurchase Order", "erpnext_purchase_order"),
+    ("tabPurchase Order Item", "erpnext_purchase_order_item"),
+    ("tabMaterial Request", "erpnext_material_request"),
+    ("tabMaterial Request Item", "erpnext_material_request_item"),
 ]
 
 
