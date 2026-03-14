@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mariadb -u:*)",
+      "Bash(d:/Projects/RT/dw-rag/WAREHOUSE_DESIGN.md:*)",
+      "Bash(d:/Projects/RT/dw-rag/BUILD_SUMMARY.txt:*)"
+    ]
+  }
+}

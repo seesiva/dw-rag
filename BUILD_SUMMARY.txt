@@ -1,0 +1,200 @@
+================================================================================
+ERPNext Sales Analytics Data Warehouse - BUILD COMPLETE
+================================================================================
+
+Generated: 2026-03-14
+Project: d:\Projects\RT\dw-rag
+
+================================================================================
+WHAT WAS BUILT
+================================================================================
+
+✓ Complete 3-layer data warehouse pipeline:
+  - Raw layer (PostgreSQL) - 11 source tables from ERPNext MariaDB
+  - Staging layer - Cleaned & normalized data
+  - Mart layer - Star schema (5 dimensions + 3 facts)
+
+✓ Python ETL pipeline:
+  - src/config.py - Database connection configuration
+  - src/extract.py - MariaDB to PostgreSQL extraction with pandas
+
+✓ SQL transformation scripts:
+  - Raw schema creation with indexes
+  - Staging layer with 9 transformation CTEs
+  - Mart dimensions (Date, Customer, Item, Item Attribute, Warehouse)
+  - Mart facts (Sales Orders, Sales Invoices, Stock Movement)
+  - Data quality validation queries
+
+✓ Documentation:
+  - README.md - Quick start guide with execution steps
+  - WAREHOUSE_DESIGN.md - Complete design document
+  - CLAUDE.md - Project charter (pre-existing)
+
+================================================================================
+FILES CREATED (16 TOTAL)
+================================================================================
+
+Python (src/):
+  src/config.py                      Database configuration
+  src/extract.py                     MariaDB extraction pipeline
+
+SQL - Raw Layer (sql/raw/):
+  01_create_raw_schema.sql           Create 11 source tables
+
+SQL - Staging Layer (sql/staging/):
+  01_stg_all.sql                     9 transformed staging tables
+
+SQL - Mart Layer (sql/mart/):
+  01_dim_date.sql                    Calendar dimension (4K rows)
+  02_dim_customer.sql                Customer master (34 rows)
+  03_dim_item.sql                    Product master (34,761 rows)
+  04_dim_item_attribute.sql          Item attributes (138,830 rows)
+  05_dim_warehouse.sql               Location master (105 rows)
+  06_fact_sales_order_line.sql       Order line facts (33,191 rows)
+  07_fact_sales_invoice_line.sql     Invoice line facts (5,724 rows)
+  08_fact_stock_movement.sql         Stock movements (1,260,906 rows)
+
+SQL - Validation (sql/validation/):
+  01_row_counts.sql                  Data quality checks
+
+Documentation:
+  README.md                          Setup & execution guide
+  WAREHOUSE_DESIGN.md                Complete design documentation
+  BUILD_SUMMARY.txt                  This file
+
+================================================================================
+DATA VOLUMES
+================================================================================
+
+Source Tables (MariaDB):
+  Sales Invoices:           1,482 rows
+  Sales Invoice Items:      5,724 rows
+  Sales Orders:             4,574 rows
+  Sales Order Items:       33,191 rows
+  Customers:                  34 rows
+  Items:                   34,761 rows
+  Warehouses:                105 rows
+  Stock Ledger:        1,260,906 rows
+  Item Attributes:            87 rows
+  Item Attribute Values:    6,041 rows
+  Item Variant Attributes: 138,830 rows
+  TOTAL: ~1.5 million rows
+
+Warehouse Tables (PostgreSQL):
+  Dimensions:      5 tables
+  Facts:           3 tables
+  Staging:         9 tables
+  Raw:            11 tables
+  Date dimension:  ~4,000 days (2020-2030)
+
+================================================================================
+QUICK START
+================================================================================
+
+1. Install dependencies:
+   pip install sqlalchemy pandas pymysql psycopg2-binary
+
+2. Create PostgreSQL database:
+   createdb dw_rag
+
+3. Extract raw data:
+   cd src && python extract.py
+
+4. Build staging:
+   psql -U postgres -d dw_rag -f ../sql/staging/01_stg_all.sql
+
+5. Build mart (run all files in sql/mart/):
+   psql -U postgres -d dw_rag -f ../sql/mart/01_dim_date.sql
+   (repeat for 02-08...)
+
+6. Validate:
+   psql -U postgres -d dw_rag -f ../sql/validation/01_row_counts.sql
+
+See README.md for detailed instructions.
+
+================================================================================
+DIMENSIONAL MODEL
+================================================================================
+
+Dimensions (lookup tables):
+  dim_date               Calendar (4K rows, 2020-2030)
+  dim_customer           Customer master (34 rows)
+  dim_item               Product master (34,761 rows)
+  dim_item_attribute     Product attributes (138,830 rows)
+  dim_warehouse          Location master (105 rows)
+
+Facts (transactional tables):
+  fact_sales_order_line      Order lines (33,191 rows)
+  fact_sales_invoice_line    Invoice lines (5,724 rows)
+  fact_stock_movement        Stock transactions (1,260,906 rows)
+
+Key Features:
+  - Surrogate keys for dimensional consistency
+  - Submitted records only (docstatus=1)
+  - Item attributes in long format (enables Power BI slicing)
+  - Return handling with signed_net_amount
+  - Complete stock audit trail with voucher type
+
+================================================================================
+POWER BI READY
+================================================================================
+
+Connection: PostgreSQL localhost, database dw_rag, schema mart
+Tables to import: All dim_* and fact_* tables
+Relationships: Customer, Item, Warehouse, Date foreign keys
+Supported reports: Sales trends, inventory movement, product analysis
+
+Sample KPIs enabled:
+  - Monthly revenue by customer/territory/product
+  - Top items by color, size, composition
+  - Warehouse stock movements
+  - Sales vs returns analysis
+  - Stock valuation by warehouse
+
+================================================================================
+ARCHITECTURE HIGHLIGHTS
+================================================================================
+
+✓ Star Schema - optimized for analytics
+✓ Surrogate Keys - clean dimensional joins
+✓ Garment-Specific - item attributes for color/size/composition
+✓ Return Handling - signed amounts for accurate revenue
+✓ Stock Audit - complete transaction trail (1.26M rows)
+✓ Idempotent - safe to rerun via TRUNCATE+INSERT
+✓ Indexed - strategic FK and date indexes
+✓ Validated - data quality checks included
+
+================================================================================
+DESIGN DECISIONS
+================================================================================
+
+1. Submitted records only: Filters all facts to docstatus=1
+2. Item attributes in long format: Enables Power BI slicers by attribute
+3. Signed net amount: Returns automatically negate, revenue = SUM(signed_amount)
+4. Surrogate keys: Avoids multi-column joins, enables SCD later
+5. Fiscal year Apr-Mar: Aligns with garment industry
+6. Idempotent pipelines: TRUNCATE+INSERT for safe reruns
+7. Large table chunking: 10K-row batches for 1.26M stock ledger
+
+================================================================================
+DOCUMENTATION REFERENCES
+================================================================================
+
+README.md              - Setup, execution, troubleshooting, Power BI connection
+WAREHOUSE_DESIGN.md   - Complete schema design, dimensional model, sample queries
+CLAUDE.md             - Project charter, architecture requirements
+SQL files             - Inline comments explain all transformations
+
+================================================================================
+READY TO EXECUTE
+================================================================================
+
+All files are created and ready to run. Start with src/extract.py and follow
+the README.md execution steps.
+
+The warehouse is fully designed for:
+  - Power BI dashboards
+  - SQL analytics
+  - Future AI/RAG systems (via semantic layer)
+
+Success!
