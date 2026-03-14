@@ -12,7 +12,7 @@ SELECT
     di.item_key,
     dw.warehouse_key,
     dd.date_id AS invoice_date_id,
-    (TO_CHAR(COALESCE(i.due_date, i.posting_date), 'YYYYMMDD'))::INT AS due_date_id,
+    (TO_CHAR(COALESCE(i.due_date::DATE, i.posting_date::DATE), 'YYYYMMDD'))::INT AS due_date_id,
     -- Actual dates (crucial for filtering and analysis)
     i.posting_date::DATE AS invoice_date,
     i.due_date::DATE AS payment_due_date,
@@ -32,7 +32,7 @@ INNER JOIN staging.stg_sales_invoice i ON ii.invoice_id = i.invoice_id
 LEFT JOIN mart.dim_customer dc ON i.customer = dc.customer_id
 LEFT JOIN mart.dim_item di ON ii.item_code = di.item_code
 LEFT JOIN mart.dim_warehouse dw ON ii.warehouse = dw.warehouse_id
-LEFT JOIN mart.dim_date dd ON i.posting_date = dd.full_date;
+LEFT JOIN mart.dim_date dd ON i.posting_date::DATE = dd.full_date;
 
 ALTER TABLE mart.fact_sales_invoice_line ADD PRIMARY KEY (fact_key);
 CREATE INDEX idx_fact_sales_invoice_customer ON mart.fact_sales_invoice_line(customer_key);

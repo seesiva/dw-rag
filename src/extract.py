@@ -61,8 +61,14 @@ def extract_table(src_engine, tgt_engine, src_table, tgt_table, chunk_size=CHUNK
         # Clean text columns - replace problematic characters
         for col in df.select_dtypes(include=['object']).columns:
             try:
-                # Replace BOM and problematic characters
-                df[col] = df[col].apply(lambda x: str(x).replace('\ufeff', '').replace('\u202f', ' ') if pd.notna(x) else x)
+                # Replace BOM, non-breaking spaces, currency symbols, and other problematic characters
+                df[col] = df[col].apply(lambda x: str(x)
+                    .replace('\ufeff', '')      # BOM
+                    .replace('\u202f', ' ')     # Narrow non-breaking space
+                    .replace('\u20b9', 'Rs.')   # Indian Rupee symbol
+                    .replace('\u20ac', 'EUR')   # Euro symbol
+                    .replace('\u00a3', 'GBP')   # Pound symbol
+                    if pd.notna(x) else x)
             except:
                 pass
 

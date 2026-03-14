@@ -34,7 +34,7 @@ SELECT
 FROM staging.stg_stock_ledger sl
 LEFT JOIN mart.dim_item di ON sl.item_code = di.item_code
 LEFT JOIN mart.dim_warehouse dw ON sl.warehouse = dw.warehouse_id
-LEFT JOIN mart.dim_date dd ON sl.posting_date = dd.full_date;
+LEFT JOIN mart.dim_date dd ON sl.posting_date::DATE = dd.full_date;
 
 ALTER TABLE mart.fact_stock_movement ADD PRIMARY KEY (fact_key);
 CREATE INDEX idx_fact_stock_movement_item ON mart.fact_stock_movement(item_key);

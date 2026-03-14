@@ -14,9 +14,11 @@ item_bom_status AS (
     -- Check if item has active default BOM (for stock items)
     SELECT DISTINCT item_code, TRUE AS has_active_bom
     FROM staging.stg_bom
-    WHERE is_default = TRUE OR is_default = 1
-)
+    WHERE is_default = TRUE
+),
+base_data AS (
 SELECT
+    ROW_NUMBER() OVER (ORDER BY i.item_code) AS fact_key,
     di.item_key,
     i.item_code,
     i.item_name,
@@ -76,7 +78,6 @@ SELECT
               (i.is_purchase = TRUE AND i.purchase_uom IS NULL) THEN 'INCOMPLETE'
          WHEN i.is_sales = TRUE AND i.brand IS NULL THEN 'INCOMPLETE'
          ELSE 'COMPLETE' END AS readiness_status,
-    i.is_purchase,
     i.valuation_method,
     i.creation,
     i.modified,
@@ -85,9 +86,11 @@ FROM staging.stg_item i
 LEFT JOIN mart.dim_item di ON i.item_code = di.item_code
 LEFT JOIN item_sales_activity isa ON i.item_code = isa.item_code
 LEFT JOIN item_bom_status ibs ON i.item_code = ibs.item_code
-ORDER BY readiness_status DESC, i.item_code;
+)
+SELECT * FROM base_data
+ORDER BY readiness_status DESC, item_code;
 
-ALTER TABLE mart.fact_item_master_readiness ADD PRIMARY KEY (item_key);
+ALTER TABLE mart.fact_item_master_readiness ADD PRIMARY KEY (fact_key);
 CREATE INDEX idx_item_readiness_status ON mart.fact_item_master_readiness(readiness_status);
 CREATE INDEX idx_item_readiness_bom_status ON mart.fact_item_master_readiness(bom_status);
 CREATE INDEX idx_item_readiness_sales_score ON mart.fact_item_master_readiness(sales_readiness_score);

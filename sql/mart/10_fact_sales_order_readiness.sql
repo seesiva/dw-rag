@@ -27,7 +27,7 @@ WITH order_summary AS (
     FROM staging.stg_sales_order o
     INNER JOIN staging.stg_sales_order_item oi ON o.order_id = oi.order_id
     LEFT JOIN mart.dim_customer dc ON o.customer = dc.customer_id
-    LEFT JOIN mart.dim_date dd_delivery ON o.delivery_date = dd_delivery.full_date
+    LEFT JOIN mart.dim_date dd_delivery ON o.delivery_date::DATE = dd_delivery.full_date
     GROUP BY o.order_id, o.customer, o.customer_name, dc.customer_key, o.transaction_date,
              o.posting_date, o.delivery_date, o.status, o.net_total, o.grand_total,
              o.company, o.territory, dd_delivery.date_id
@@ -50,7 +50,7 @@ SELECT
          ELSE 'Pending' END AS fulfillment_status,
     CASE WHEN os.days_overdue > 0 THEN TRUE ELSE FALSE END AS is_overdue,
     CASE WHEN os.days_overdue > 0 THEN os.days_overdue ELSE 0 END AS days_past_due,
-    CASE WHEN os.delivery_date > CURRENT_DATE THEN EXTRACT(DAY FROM os.delivery_date::DATE - CURRENT_DATE) ELSE 0 END AS days_until_due,
+    CASE WHEN os.delivery_date::DATE > CURRENT_DATE THEN (os.delivery_date::DATE - CURRENT_DATE)::INT ELSE 0 END AS days_until_due,
     os.qty_ordered,
     os.line_count,
     os.net_total,

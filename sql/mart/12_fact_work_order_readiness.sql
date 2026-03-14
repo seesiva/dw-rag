@@ -14,7 +14,7 @@ WITH work_order_summary AS (
         COALESCE(di.item_key, -1) AS item_key,
         wo.bom_no,
         wo.status,
-        wo.qty AS planned_qty,
+        wo.planned_qty,
         wo.produced_qty,
         wo.planned_start_date,
         wo.planned_end_date,
@@ -35,7 +35,7 @@ WITH work_order_summary AS (
         GROUP BY work_order
     ) jc_count ON wo.work_order_id = jc_count.work_order
     LEFT JOIN (
-        SELECT work_order_id, COUNT(DISTINCT work_order_item_id) AS material_item_count
+        SELECT work_order_id, COUNT(DISTINCT item_id) AS material_item_count
         FROM staging.stg_work_order_item
         GROUP BY work_order_id
     ) woi_count ON wo.work_order_id = woi_count.work_order_id
@@ -63,7 +63,7 @@ SELECT
     CASE WHEN COALESCE(wos.planned_end_date, CURRENT_DATE) < CURRENT_DATE AND wos.status != 'Completed'
          THEN TRUE ELSE FALSE END AS is_overdue,
     CASE WHEN COALESCE(wos.planned_end_date, CURRENT_DATE) < CURRENT_DATE AND wos.status != 'Completed'
-         THEN EXTRACT(DAY FROM CURRENT_DATE - wos.planned_end_date::DATE)
+         THEN (CURRENT_DATE - wos.planned_end_date::DATE)::INT
          ELSE 0 END AS days_overdue,
     -- Job card readiness
     wos.has_job_cards,

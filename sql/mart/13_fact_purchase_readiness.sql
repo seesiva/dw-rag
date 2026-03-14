@@ -13,38 +13,38 @@ SELECT
     po.supplier,
     poi.item_code,
     poi.item_name,
-    poi.qty AS ordered_qty,
+    poi.ordered_qty AS ordered_qty,
     COALESCE(poi.received_qty, 0) AS received_qty,
-    (COALESCE(poi.qty, 0) - COALESCE(poi.received_qty, 0)) AS pending_qty,
+    (COALESCE(poi.ordered_qty, 0) - COALESCE(poi.received_qty, 0)) AS pending_qty,
     poi.rate,
     poi.base_rate,
     poi.amount,
     po.transaction_date AS po_date,
-    poi.expected_delivery_date,
-    po.expected_delivery_date AS po_expected_delivery_date,
+    poi.schedule_date,
+    po.schedule_date AS po_expected_delivery_date,
     po.status AS po_status,
     -- Receipt status determination
     CASE WHEN COALESCE(poi.received_qty, 0) = 0 THEN 'Not Received'
-         WHEN COALESCE(poi.received_qty, 0) < poi.qty THEN 'Partially Received'
-         WHEN COALESCE(poi.received_qty, 0) >= poi.qty THEN 'Fully Received'
+         WHEN COALESCE(poi.received_qty, 0) < poi.ordered_qty THEN 'Partially Received'
+         WHEN COALESCE(poi.received_qty, 0) >= poi.ordered_qty THEN 'Fully Received'
          ELSE 'Unknown' END AS receipt_status,
     -- Overdue check
-    CASE WHEN COALESCE(poi.expected_delivery_date, po.expected_delivery_date, CURRENT_DATE) < CURRENT_DATE
-              AND COALESCE(poi.received_qty, 0) < poi.qty
+    CASE WHEN COALESCE(poi.schedule_date, po.schedule_date, CURRENT_DATE) < CURRENT_DATE
+              AND COALESCE(poi.received_qty, 0) < poi.ordered_qty
          THEN TRUE ELSE FALSE END AS is_overdue,
-    CASE WHEN COALESCE(poi.expected_delivery_date, po.expected_delivery_date, CURRENT_DATE) < CURRENT_DATE
-              AND COALESCE(poi.received_qty, 0) < poi.qty
-         THEN EXTRACT(DAY FROM CURRENT_DATE - COALESCE(poi.expected_delivery_date, po.expected_delivery_date)::DATE)
+    CASE WHEN COALESCE(poi.schedule_date, po.schedule_date, CURRENT_DATE) < CURRENT_DATE
+              AND COALESCE(poi.received_qty, 0) < poi.ordered_qty
+         THEN (CURRENT_DATE - COALESCE(poi.schedule_date, po.schedule_date)::DATE)::INT
          ELSE 0 END AS days_pending,
-    CASE WHEN COALESCE(poi.expected_delivery_date, po.expected_delivery_date, CURRENT_DATE) >= CURRENT_DATE
-              AND COALESCE(poi.received_qty, 0) < poi.qty
-         THEN EXTRACT(DAY FROM COALESCE(poi.expected_delivery_date, po.expected_delivery_date)::DATE - CURRENT_DATE)
+    CASE WHEN COALESCE(poi.schedule_date, po.schedule_date, CURRENT_DATE) >= CURRENT_DATE
+              AND COALESCE(poi.received_qty, 0) < poi.ordered_qty
+         THEN (COALESCE(poi.schedule_date, po.schedule_date)::DATE - CURRENT_DATE)::INT
          ELSE 0 END AS days_until_due,
     -- Readiness flags
-    CASE WHEN COALESCE(poi.received_qty, 0) >= poi.qty THEN 'RECEIVED'
-         WHEN COALESCE(poi.expected_delivery_date, po.expected_delivery_date, CURRENT_DATE) < CURRENT_DATE
-              AND COALESCE(poi.received_qty, 0) < poi.qty THEN 'OVERDUE'
-         WHEN COALESCE(poi.received_qty, 0) > 0 AND COALESCE(poi.received_qty, 0) < poi.qty THEN 'PARTIALLY_RECEIVED'
+    CASE WHEN COALESCE(poi.received_qty, 0) >= poi.ordered_qty THEN 'RECEIVED'
+         WHEN COALESCE(poi.schedule_date, po.schedule_date, CURRENT_DATE) < CURRENT_DATE
+              AND COALESCE(poi.received_qty, 0) < poi.ordered_qty THEN 'OVERDUE'
+         WHEN COALESCE(poi.received_qty, 0) > 0 AND COALESCE(poi.received_qty, 0) < poi.ordered_qty THEN 'PARTIALLY_RECEIVED'
          WHEN COALESCE(poi.received_qty, 0) = 0 THEN 'PENDING_RECEIPT'
          ELSE 'UNKNOWN' END AS fulfillment_status,
     po.company,
@@ -55,8 +55,8 @@ INNER JOIN staging.stg_purchase_order po ON poi.po_id = po.po_id
 LEFT JOIN mart.dim_item di ON poi.item_code = di.item_code
 LEFT JOIN mart.dim_warehouse dw ON poi.warehouse = dw.warehouse_id
 WHERE po.status NOT IN ('Cancelled', 'Closed')  -- Exclude completed/cancelled orders
-ORDER BY COALESCE(poi.expected_delivery_date, po.expected_delivery_date) ASC,
-         COALESCE(poi.received_qty, 0) / NULLIF(poi.qty, 0) ASC;
+ORDER BY COALESCE(poi.schedule_date, po.schedule_date) ASC,
+         COALESCE(poi.received_qty, 0) / NULLIF(poi.ordered_qty, 0) ASC;
 
 ALTER TABLE mart.fact_purchase_readiness ADD PRIMARY KEY (fact_key);
 CREATE INDEX idx_po_readiness_item_key ON mart.fact_purchase_readiness(item_key);

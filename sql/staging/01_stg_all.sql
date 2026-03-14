@@ -62,9 +62,9 @@ SELECT
     o.name AS order_id,
     o.customer,
     o.customer_name,
-    o.transaction_date,
-    o.posting_date,
-    o.delivery_date,
+    COALESCE(o.transaction_date, o.order_date) AS transaction_date,
+    COALESCE(o.transaction_date, o.order_date) AS posting_date,
+    o.delivery_date::DATE,
     o.base_net_total::NUMERIC(18,6) AS net_total,
     o.base_grand_total::NUMERIC(18,6) AS grand_total,
     o.base_total_taxes_and_charges::NUMERIC(18,6) AS total_taxes,
@@ -73,7 +73,6 @@ SELECT
     o.status,
     o.company,
     o.territory,
-    o.cost_center,
     o.project,
     o.creation,
     o.modified
@@ -101,8 +100,7 @@ SELECT
     uom,
     discount_percentage::NUMERIC(18,6),
     brand,
-    cost_center,
-    delivery_date
+    delivery_date::DATE
 FROM raw.erpnext_sales_order_item
 WHERE parent IN (SELECT order_id FROM staging.stg_sales_order);
 
@@ -188,7 +186,7 @@ SELECT
     creation,
     modified
 FROM raw.erpnext_stock_ledger_entry
-WHERE is_cancelled = '0';
+WHERE is_cancelled != 'Yes';
 
 -- Staging: Item Variant Attributes (all combinations)
 DROP TABLE IF EXISTS staging.stg_item_variant_attribute CASCADE;

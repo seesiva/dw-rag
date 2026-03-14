@@ -12,7 +12,7 @@ SELECT
     di.item_key,
     dw.warehouse_key,
     dd.date_id AS order_date_id,
-    (TO_CHAR(COALESCE(o.delivery_date, o.posting_date), 'YYYYMMDD'))::INT AS delivery_date_id,
+    (TO_CHAR(COALESCE(o.delivery_date, o.posting_date::DATE), 'YYYYMMDD'))::INT AS delivery_date_id,
     -- Actual dates (crucial for filtering and analysis)
     o.transaction_date::DATE AS order_date,
     o.posting_date::DATE AS order_posted_date,
@@ -32,7 +32,7 @@ INNER JOIN staging.stg_sales_order o ON oi.order_id = o.order_id
 LEFT JOIN mart.dim_customer dc ON o.customer = dc.customer_id
 LEFT JOIN mart.dim_item di ON oi.item_code = di.item_code
 LEFT JOIN mart.dim_warehouse dw ON oi.warehouse = dw.warehouse_id
-LEFT JOIN mart.dim_date dd ON o.posting_date = dd.full_date;
+LEFT JOIN mart.dim_date dd ON o.posting_date::DATE = dd.full_date;
 
 ALTER TABLE mart.fact_sales_order_line ADD PRIMARY KEY (fact_key);
 CREATE INDEX idx_fact_sales_order_customer ON mart.fact_sales_order_line(customer_key);
