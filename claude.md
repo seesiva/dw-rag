@@ -93,7 +93,31 @@ Avoid introducing unless explicitly requested
 Goal:
 
 **simple, maintainable architecture suitable for a small engineering team.**
+# Operational Readiness and Pending Work Reporting
 
+The warehouse must support not only analytical reporting but also operational readiness and pending work monitoring.
+
+Business users need visibility into ERP data entry and process completion gaps.
+
+Examples include:
+
+- items without BOM
+- sales orders without work orders
+- purchase actions pending
+- stock-out items blocking downstream work
+- job cards not yet created
+
+The mart layer should therefore support operational exception and readiness reporting in addition to standard analytics.
+
+Recommended derived marts or views include:
+
+- fact_item_master_readiness
+- fact_sales_order_readiness
+- fact_purchase_readiness
+- fact_work_order_readiness
+- fact_material_shortage
+
+These marts should be designed for action-oriented dashboards in Power BI.
 ---
 # Sales Lifecycle Modeling
 

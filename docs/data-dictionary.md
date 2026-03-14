@@ -345,6 +345,177 @@ ORDER BY revenue DESC
 
 ---
 
+## Operational Readiness Fact Tables
+
+### fact_material_shortage
+
+**Purpose:** Monitor current stock status across warehouses. Identifies items at zero or negative stock that block production and delivery.
+
+**Grain:** 1 row per item + warehouse combination (current snapshot)
+
+**Key Columns:**
+
+| Column | Type | Description | Example |
+|--------|------|-------------|---------|
+| item_key | INTEGER | FK to dim_item | 1045 |
+| warehouse_key | INTEGER | FK to dim_warehouse | 12 |
+| item_code | VARCHAR | ERPNext item code | GAR-2024-001 |
+| item_name | VARCHAR | Item display name | Shirt Size M Red |
+| item_group | VARCHAR | Product category | Finished Goods |
+| warehouse | VARCHAR | Warehouse name | Mumbai WH |
+| current_qty | NUMERIC(18,6) | Latest qty on hand | -5.00 |
+| is_shortfall | BOOLEAN | TRUE if qty <= 0 | TRUE |
+| stock_status | VARCHAR | Status: 'Negative', 'Zero Stock', 'Available' | Negative |
+| last_stock_movement_date | DATE | Last transaction date | 2026-03-14 |
+| is_stock | BOOLEAN | Item is tracked in inventory? | TRUE |
+| is_sales | BOOLEAN | Item is saleable? | TRUE |
+| is_purchase | BOOLEAN | Item is purchasable? | FALSE |
+| brand | VARCHAR | Product brand | RAGA |
+| dw_load_date | TIMESTAMP | Load timestamp | 2026-03-14 10:30:00 |
+
+**Query Examples:**
+
+```sql
+-- Items in critical shortage (negative stock)
+SELECT item_code, item_name, warehouse, current_qty
+FROM fact_material_shortage
+WHERE stock_status = 'Negative'
+ORDER BY current_qty ASC;
+
+-- Stock shortage by warehouse
+SELECT warehouse, COUNT(*) as shortage_count, SUM(current_qty) as total_shortage_qty
+FROM fact_material_shortage
+WHERE is_shortfall = TRUE
+GROUP BY warehouse
+ORDER BY shortage_count DESC;
+
+-- Sales items with no stock
+SELECT item_code, item_name, COUNT(DISTINCT warehouse) as warehouses_short
+FROM fact_material_shortage
+WHERE is_stock = TRUE AND is_sales = TRUE AND is_shortfall = TRUE
+GROUP BY item_code, item_name
+ORDER BY warehouses_short DESC;
+```
+
+---
+
+### fact_sales_order_readiness
+
+**Purpose:** Track sales order fulfillment status and delivery gaps. Identifies orders overdue, due soon, or pending delivery.
+
+**Grain:** 1 row per sales order
+
+**Key Columns:**
+
+| Column | Type | Description | Example |
+|--------|------|-------------|---------|
+| fact_key | INTEGER | Primary key | 1234 |
+| order_id | VARCHAR | ERPNext order ID | SO-2026-00156 |
+| customer_key | INTEGER | FK to dim_customer | 8 |
+| customer_name | VARCHAR | Customer display name | BLUE DIAMOND |
+| order_date | DATE | Order creation date | 2026-03-01 |
+| expected_delivery_date | DATE | Promised delivery date | 2026-03-20 |
+| order_status | VARCHAR | ERPNext status | To Deliver and Bill |
+| fulfillment_status | VARCHAR | Status: 'Overdue', 'Due Today', 'Due This Week', 'Pending', 'Closed' | Overdue |
+| is_overdue | BOOLEAN | TRUE if past delivery date | TRUE |
+| days_past_due | INTEGER | Days late (0 if not overdue) | 5 |
+| days_until_due | INTEGER | Days until due (0 if overdue) | 0 |
+| qty_ordered | NUMERIC(18,6) | Total order quantity | 100.00 |
+| line_count | INTEGER | Number of line items | 3 |
+| net_total | NUMERIC(18,6) | Order total before tax | 45000.00 |
+| grand_total | NUMERIC(18,6) | Order total after tax | 53100.00 |
+| company | VARCHAR | Legal entity | RAGA TEX INDIA |
+| territory | VARCHAR | Sales territory | North India |
+| dw_load_date | TIMESTAMP | Load timestamp | 2026-03-14 10:30:00 |
+
+**Query Examples:**
+
+```sql
+-- Overdue orders requiring escalation
+SELECT order_id, customer_name, expected_delivery_date, days_past_due, grand_total
+FROM fact_sales_order_readiness
+WHERE is_overdue = TRUE
+ORDER BY days_past_due DESC;
+
+-- Orders due this week
+SELECT order_id, customer_name, expected_delivery_date, qty_ordered
+FROM fact_sales_order_readiness
+WHERE fulfillment_status = 'Due This Week'
+ORDER BY expected_delivery_date;
+
+-- Fulfillment by territory
+SELECT territory, COUNT(*) as order_count,
+       COUNT(CASE WHEN is_overdue THEN 1 END) as overdue_count,
+       ROUND(100.0 * COUNT(CASE WHEN is_overdue THEN 1 END) / COUNT(*), 1) as overdue_pct
+FROM fact_sales_order_readiness
+WHERE order_status != 'Closed'
+GROUP BY territory
+ORDER BY overdue_pct DESC;
+```
+
+---
+
+### fact_item_master_readiness
+
+**Purpose:** Monitor item master data completeness. Identifies items with missing critical attributes that block downstream processes.
+
+**Grain:** 1 row per item
+
+**Key Columns:**
+
+| Column | Type | Description | Example |
+|--------|------|-------------|---------|
+| item_key | INTEGER | FK to dim_item | 502 |
+| item_code | VARCHAR | Item code | GAR-2024-SHIRT-M-BLU |
+| item_name | VARCHAR | Item display name | Shirt Size M Blue |
+| item_group | VARCHAR | Product category | Finished Goods |
+| brand | VARCHAR | Brand/manufacturer | RAGA |
+| has_item_group | BOOLEAN | Item group assigned? | TRUE |
+| has_brand | BOOLEAN | Brand assigned? | TRUE |
+| has_weight | BOOLEAN | Weight recorded? | FALSE |
+| has_stock_uom | BOOLEAN | Stock UOM defined? | TRUE |
+| has_purchase_uom | BOOLEAN | Purchase UOM defined? | TRUE |
+| is_sales | BOOLEAN | Marked as saleable? | TRUE |
+| is_stock | BOOLEAN | Marked as stocked? | TRUE |
+| is_purchase | BOOLEAN | Marked as purchasable? | FALSE |
+| is_sales_item | BOOLEAN | Is saleable (derived)? | TRUE |
+| is_stock_item | BOOLEAN | Is stocked (derived)? | TRUE |
+| is_purchase_item | BOOLEAN | Is purchasable (derived)? | FALSE |
+| has_recent_sales_activity | BOOLEAN | Appears in recent sales? | TRUE |
+| sales_readiness_score | NUMERIC(5,1) | Sales item completeness (0-100) | 75.0 |
+| stock_readiness_score | NUMERIC(5,1) | Stock item completeness (0-100) | 50.0 |
+| purchase_readiness_score | NUMERIC(5,1) | Purchase item completeness (0-100) | 0.0 |
+| readiness_status | VARCHAR | 'COMPLETE' or 'INCOMPLETE' | INCOMPLETE |
+| creation | TIMESTAMP | Item creation date in ERP | 2025-06-15 08:00:00 |
+| modified | TIMESTAMP | Last modified date in ERP | 2026-03-10 14:22:00 |
+| dw_load_date | TIMESTAMP | Load timestamp | 2026-03-14 10:30:00 |
+
+**Query Examples:**
+
+```sql
+-- Items with incomplete master data
+SELECT item_code, item_name, readiness_status, sales_readiness_score, stock_readiness_score
+FROM fact_item_master_readiness
+WHERE readiness_status = 'INCOMPLETE'
+ORDER BY sales_readiness_score, stock_readiness_score;
+
+-- Sales items missing brand
+SELECT item_code, item_name, sales_readiness_score
+FROM fact_item_master_readiness
+WHERE is_sales = TRUE AND has_brand = FALSE AND has_recent_sales_activity = TRUE
+ORDER BY item_code;
+
+-- Data completeness summary
+SELECT
+    SUM(CASE WHEN readiness_status = 'COMPLETE' THEN 1 END) as complete_count,
+    SUM(CASE WHEN readiness_status = 'INCOMPLETE' THEN 1 END) as incomplete_count,
+    ROUND(100.0 * SUM(CASE WHEN readiness_status = 'COMPLETE' THEN 1 END) / COUNT(*), 1) as pct_complete
+FROM fact_item_master_readiness
+WHERE is_sales = TRUE OR is_stock = TRUE;
+```
+
+---
+
 ## Glossary
 
 | Term | Definition |

@@ -359,8 +359,132 @@ GROUP BY date_id
 
 ---
 
+### fact_material_shortage
+Operational readiness: Current stock status for all items.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| item_key | INTEGER | FK → dim_item |
+| warehouse_key | INTEGER | FK → dim_warehouse |
+| item_code | VARCHAR | Item code |
+| item_name | VARCHAR | Item display name |
+| item_group | VARCHAR | Product category |
+| warehouse | VARCHAR | Warehouse name |
+| current_qty | NUMERIC(18,6) | Latest quantity on hand |
+| is_shortfall | BOOLEAN | TRUE if qty <= 0 (critical shortage) |
+| stock_status | VARCHAR | 'Negative', 'Zero Stock', or 'Available' |
+| last_stock_movement_date | DATE | Last transaction date for this item+warehouse |
+| is_stock | BOOLEAN | Is this a stocked item? |
+| is_sales | BOOLEAN | Is this a saleable item? |
+| is_purchase | BOOLEAN | Is this a purchasable item? |
+| brand | VARCHAR | Product brand |
+| dw_load_date | TIMESTAMP | Data warehouse load timestamp |
+
+**Grain:** 1 row per item + warehouse (current stock snapshot)
+**Row Count:** Varies with item+warehouse combinations
+**Primary Key:** item_key, warehouse_key
+**Foreign Keys:** item_key, warehouse_key
+**Indexes:** is_shortfall, stock_status, item_code
+
+**Use Cases:**
+- Identify items at zero or negative stock blocking operations
+- Monitor stock shortages by warehouse
+- Prioritize procurement for critical items
+- Power BI operational dashboard for stock status
+
+---
+
+### fact_sales_order_readiness
+Operational readiness: Sales order fulfillment tracking and gap analysis.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| fact_key | INTEGER | Surrogate key |
+| order_id | VARCHAR | ERPNext sales order ID |
+| customer_key | INTEGER | FK → dim_customer |
+| customer | VARCHAR | Customer ID |
+| customer_name | VARCHAR | Customer name |
+| order_date | DATE | Order transaction date |
+| order_posted_date | DATE | Order posting date |
+| expected_delivery_date | DATE | Committed delivery date |
+| delivery_date_id | INTEGER | FK → dim_date |
+| order_status | VARCHAR | Current order status |
+| fulfillment_status | VARCHAR | 'Closed', 'Overdue', 'Due Today', 'Due This Week', 'Pending' |
+| is_overdue | BOOLEAN | TRUE if past delivery date |
+| days_past_due | INTEGER | Days overdue (0 if not overdue) |
+| days_until_due | INTEGER | Days remaining until due (0 if overdue) |
+| qty_ordered | NUMERIC(18,6) | Total quantity ordered |
+| line_count | INTEGER | Number of line items in order |
+| net_total | NUMERIC(18,6) | Order net total |
+| grand_total | NUMERIC(18,6) | Order total with taxes |
+| company | VARCHAR | Legal entity |
+| territory | VARCHAR | Sales territory |
+| dw_load_date | TIMESTAMP | Data warehouse load timestamp |
+
+**Grain:** 1 row per sales order
+**Row Count:** ~4,500 (varies with order volume)
+**Primary Key:** fact_key
+**Foreign Keys:** customer_key, delivery_date_id
+**Indexes:** customer_key, fulfillment_status, is_overdue, order_id, expected_delivery_date
+
+**Use Cases:**
+- Identify overdue deliveries requiring escalation
+- Track orders due this week
+- Monitor fulfillment progress
+- Territory-level delivery performance
+- Power BI operational dashboard for order fulfillment
+
+---
+
+### fact_item_master_readiness
+Operational readiness: Item master data completeness checks.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| item_key | INTEGER | FK → dim_item |
+| item_code | VARCHAR | Item code |
+| item_name | VARCHAR | Item display name |
+| item_group | VARCHAR | Product category |
+| brand | VARCHAR | Product brand |
+| has_item_group | BOOLEAN | Item group assigned? |
+| has_brand | BOOLEAN | Brand assigned? |
+| has_weight | BOOLEAN | Weight recorded? |
+| has_stock_uom | BOOLEAN | Stock UOM defined? |
+| has_purchase_uom | BOOLEAN | Purchase UOM defined? |
+| is_sales | BOOLEAN | Marked as saleable? |
+| is_stock | BOOLEAN | Marked as stocked? |
+| is_purchase | BOOLEAN | Marked as purchasable? |
+| is_sales_item | BOOLEAN | Is saleable (derived) |
+| is_stock_item | BOOLEAN | Is stocked (derived) |
+| is_purchase_item | BOOLEAN | Is purchasable (derived) |
+| has_recent_sales_activity | BOOLEAN | Appears in recent sales orders? |
+| sales_readiness_score | NUMERIC(5,1) | 0-100 score for sales-item completeness |
+| stock_readiness_score | NUMERIC(5,1) | 0-100 score for stock-item completeness |
+| purchase_readiness_score | NUMERIC(5,1) | 0-100 score for purchase-item completeness |
+| readiness_status | VARCHAR | 'COMPLETE' or 'INCOMPLETE' |
+| valuation_method | VARCHAR | Valuation method (FIFO, Moving Average, etc.) |
+| creation | TIMESTAMP | Item creation date in ERP |
+| modified | TIMESTAMP | Last modified date in ERP |
+| dw_load_date | TIMESTAMP | Data warehouse load timestamp |
+
+**Grain:** 1 row per item (master data completeness)
+**Row Count:** ~36,740 (total items in system)
+**Primary Key:** item_key
+**Foreign Keys:** item_key
+**Indexes:** readiness_status, sales_readiness_score, stock_readiness_score, is_sales, is_stock, has_recent_sales_activity
+
+**Use Cases:**
+- Identify items with incomplete master data
+- Monitor data quality by item type (sales vs stock vs purchase)
+- Find items missing critical attributes (brand, UOM, weight)
+- Prioritize data entry work
+- Power BI data governance dashboard
+
+---
+
 ## Relationships Summary
 
+### Transactional Facts
 | From | To | Join | Cardinality |
 |------|----|----|-------------|
 | fact_sales_invoice_line | dim_customer | customer_key | Many-to-One |
@@ -376,6 +500,19 @@ GROUP BY date_id
 | fact_stock_movement | dim_item | item_key | Many-to-One |
 | fact_stock_movement | dim_warehouse | warehouse_key | Many-to-One |
 | fact_stock_movement | dim_date | date_id | Many-to-One |
+
+### Operational Readiness Facts
+| From | To | Join | Cardinality |
+|------|----|----|-------------|
+| fact_material_shortage | dim_item | item_key | Many-to-One |
+| fact_material_shortage | dim_warehouse | warehouse_key | Many-to-One |
+| fact_sales_order_readiness | dim_customer | customer_key | Many-to-One |
+| fact_sales_order_readiness | dim_date | delivery_date_id | Many-to-One |
+| fact_item_master_readiness | dim_item | item_key | Many-to-One |
+
+### Attribute Dimension
+| From | To | Join | Cardinality |
+|------|----|----|-------------|
 | dim_item_attribute | dim_item | item_code | Many-to-One |
 
 ---
